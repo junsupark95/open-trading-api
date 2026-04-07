@@ -25,6 +25,6 @@ pip-delete-this-directory.txt
 kis_devlp.yaml
 trades.db
 ai_engine.log
-telegram_trader.py
-examples_user/
-docs/
+# telegram_trader.py # 필요할 수 있으므로 주석 처리
+# examples_user/    # 매매 엔진의 코어 의존성 파일들이 있으므로 제외하면 안 됨
+# docs/
