@@ -1,19 +1,19 @@
 #홈페이지에서 API서비스 신청시 받은 Appkey, Appsecret 값 설정
 #실전투자
-my_app: "앱키"
-my_sec: "앱키 시크릿"
+my_app: "PSxcmfGhsQTLPVK8qAYBjbHFfkuFUBJKtAdB"
+my_sec: "aiy7O2WrTspHjBHMfTKeyeDGOA/l399iFdq3tGnPpDNmE1QEnOm1Jl6brCJq7RRrPIVq8+T34Vp3KNswYW7+QJH4ZYJ3M9hrHt6A0oPn2R9HHgIS1LuR2kFniMWwXlDsgOTMfliWiEy2HZKQo1ypp9BfOijQYVbzb3MTU67EykHzGHjZxtQ="
 
 #모의투자
-paper_app: "모의투자 앱키"
-paper_sec: "모의투자 앱키 시크릿"
+paper_app: "PSccEYLabHJemLWOyplCVWRXa6DjP3eSQk7e"
+paper_sec: "bN1P92HxdLrSKI0gcLQQy/BVfo9IgZfXyDR7Voc511AU1qy3qKrkmKdRUYNsEHdV7DoIKA8huCepFwHWoykDRnohuBrxS9IhsgwH06yjgq31JVVFjicDlZ8jkZpobM6g/ktKPCqtfTvJTm4UZJvTHyYafYF79YtvTSHYEQSKONz3btsZwmM="
 
 # HTS ID
-my_htsid: "사용자 HTS ID"
+my_htsid: "95wnstn"
 
 #계좌번호 앞 8자리
-my_acct_stock: "증권계좌 8자리"
+my_acct_stock: "69025958"
 my_acct_future: "선물옵션계좌 8자리"
-my_paper_stock: "모의투자 증권계좌 8자리"
+my_paper_stock: "50181433"
 my_paper_future: "모의투자 선물옵션계좌 8자리"
 
 #계좌번호 뒤 2자리
@@ -33,3 +33,10 @@ my_token: ""
 
 # User-Agent; Chrome > F12 개발자 모드 > Console > navigator.userAgent > 자신의 userAgent 확인가능
 my_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+
+# 텔레그램 설정 (자동매매 봇용)
+telegram_token: "8616211378:AAGE0l0KlQhJ6XxPGoKMFMHukFOv4DtXdwE"
+telegram_chat_id: "5027236868"
+
+# AI 자동매매 판단용 
+gemini_api_key: "AIzaSyDm5OHkYPzkzEdHDKTJ-2bYm3ba_MR5Ok4"

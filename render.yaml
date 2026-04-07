@@ -1,0 +1,24 @@
+# Render Blueprint 설정
+services:
+  - type: web
+    name: neurotrade-ai-system
+    env: docker
+    plan: starter  # 데이터 보존을 위해 starter 이상 추천 (무료는 free)
+    region: singapore # 한국과 가까운 리전 선택
+    healthCheckPath: /api/status
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: TRADING_ENV
+        value: vps
+      - key: GEMINI_API_KEY
+        sync: false # Render 대시보드에서 직접 입력
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+    # 데이터베이스 보존을 위한 디스크 설정 (starter 이상만 가능)
+    disk:
+      name: trades-db-storage
+      mountPath: /app/data
+      sizeGB: 1

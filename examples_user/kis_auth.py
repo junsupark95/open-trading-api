@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # ====|  (REST) 접근 토큰 / (Websocket) 웹소켓 접속키 발급 에 필요한 API 호출 샘플 아래 참고하시기 바랍니다.  |=====================
 # ====|  API 호출 공통 함수 포함                                  |=====================
-
+from __future__ import annotations
 import asyncio
 import copy
 import json
