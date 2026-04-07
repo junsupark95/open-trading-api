@@ -9,6 +9,7 @@ python-telegram-bot==22.5
 pycryptodome
 pydantic
 google-genai
+psycopg2-binary
 google-api-python-client
 google-auth-httplib2
 google-auth

@@ -17,8 +17,5 @@ services:
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
-    # 데이터베이스 보존을 위한 디스크 설정 (starter 이상만 가능)
-    disk:
-      name: trades-db-storage
-      mountPath: /app/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false # Supabase 연결 주소 입력
