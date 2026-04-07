@@ -32,22 +32,49 @@ from Crypto.Util.Padding import unpad
 clearConsole = lambda: os.system("cls" if os.name in ("nt", "dos") else "clear")
 
 key_bytes = 32
-config_root = os.path.join(os.path.expanduser("~"), "KIS", "config")
-# config_root = "$HOME/KIS/config/"  # 토큰 파일이 저장될 폴더, 제3자가 찾기 어렵도록 경로 설정하시기 바랍니다.
-# token_tmp = config_root + 'KIS000000'  # 토큰 로컬저장시 파일 이름 지정, 파일이름을 토큰값이 유추가능한 파일명은 삼가바랍니다.
-# token_tmp = config_root + 'KIS' + datetime.today().strftime("%Y%m%d%H%M%S")  # 토큰 로컬저장시 파일명 년월일시분초
+# 토큰 및 설정 경로 설정
+# Render 등 클라우드 환경에서는 /app/data 또는 현재 폴더 사용
+config_root = os.environ.get("CONFIG_PATH", os.path.join(os.getcwd(), "config"))
+if os.path.exists("/app/data"): # Render Persistent Disk
+    config_root = "/app/data"
+
+# 디렉토리 자동 생성
+os.makedirs(config_root, exist_ok=True)
+
 token_tmp = os.path.join(
     config_root, f"KIS{datetime.today().strftime('%Y%m%d')}"
-)  # 토큰 로컬저장시 파일명 년월일
+)
 
-# 접근토큰 관리하는 파일 존재여부 체크, 없으면 생성
-if os.path.exists(token_tmp) == False:
-    f = open(token_tmp, "w+")
+# 토큰 파일 초기화 (필요 시)
+if not os.path.exists(token_tmp):
+    with open(token_tmp, "w", encoding="utf-8") as f:
+        pass
 
-# 앱키, 앱시크리트, 토큰, 계좌번호 등 저장관리, 자신만의 경로와 파일명으로 설정하시기 바랍니다.
-# pip install PyYAML (패키지설치)
-with open(os.path.join(config_root, "kis_devlp.yaml"), encoding="UTF-8") as f:
-    _cfg = yaml.load(f, Loader=yaml.FullLoader)
+# 설정 로드: 환경 변수에서 먼저 찾고, 없으면 yaml 로드
+_cfg = {
+    "my_app": os.environ.get("KIS_APP_KEY"),
+    "my_sec": os.environ.get("KIS_SECRET"),
+    "my_acct_stock": os.environ.get("KIS_ACCOUNT"),
+    "my_prod": os.environ.get("KIS_PROD", "01"),
+    "my_agent": os.environ.get("KIS_AGENT", "NeuroTradeAI"),
+    "paper_app": os.environ.get("KIS_PAPER_APP"),
+    "paper_sec": os.environ.get("KIS_PAPER_SEC"),
+    "my_paper_stock": os.environ.get("KIS_PAPER_ACCOUNT"),
+    "prod": "https://openapi.koreainvestment.com:9443",
+    "vps": "https://openapivts.koreainvestment.com:29443",
+    "ops": "ws://ops.koreainvestment.com:21000",
+    "vops": "ws://ops.koreainvestment.com:31000",
+}
+
+# YAML 파일이 있으면 덮어쓰기 (로컬 개발용)
+yaml_path = os.path.join(config_root, "kis_devlp.yaml")
+if os.path.exists(yaml_path):
+    try:
+        with open(yaml_path, encoding="UTF-8") as f:
+            yaml_cfg = yaml.load(f, Loader=yaml.FullLoader)
+            if yaml_cfg: _cfg.update(yaml_cfg)
+    except Exception as e:
+        logging.warning(f"YAML 로드 실패 (환경 변수 계속 사용): {e}")
 
 _TRENV = tuple()
 _last_auth_time = datetime.now()

@@ -17,8 +17,9 @@ from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-# Google Gemini AI 관련
-import google.generativeai as genai
+# Google Gemini AI 신규 SDK 관련
+from google import genai
+from google.genai import types
 
 sys.path.extend(['.', 'examples_user', 'examples_user/domestic_stock', 'examples_user/auth'])
 
@@ -41,36 +42,21 @@ logger.setLevel(logging.INFO)
 logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
 
-# 설정 로드: 환경 변수 우선, 없으면 yaml 로드
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-ALLOWED_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+# 설정 로드 통합: kis_auth에서 로드한 설정을 기반으로 Gemini/Telegram 키 추출
+# kis_auth가 먼저 실행되어야 함 (ka.getEnv() 사용 가능)
+_cfg = ka.getEnv()
 
-config = {}
-if not GEMINI_API_KEY:
-    try:
-        with open(f'{os.path.expanduser("~")}/KIS/config/kis_devlp.yaml', 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-    except:
-        try:
-            with open('kis_devlp.yaml', 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-        except:
-            logger.warning("설정 파일을 찾을 수 없어 환경 변수 모드로 시도합니다.")
-
-    GEMINI_API_KEY = config.get("gemini_api_key", GEMINI_API_KEY)
-    TELEGRAM_TOKEN = config.get("telegram_token", TELEGRAM_TOKEN)
-    ALLOWED_CHAT_ID = str(config.get("telegram_chat_id", ALLOWED_CHAT_ID))
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", _cfg.get("gemini_api_key"))
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", _cfg.get("telegram_token"))
+ALLOWED_CHAT_ID = str(os.environ.get("TELEGRAM_CHAT_ID", _cfg.get("telegram_chat_id", "")))
 
 if not GEMINI_API_KEY:
-    logger.error("GEMINI_API_KEY가 설정되지 않았습니다.")
+    logger.error("GEMINI_API_KEY가 설정되지 않았습니다. 환경 변수나 kis_devlp.yaml을 확인하세요.")
     sys.exit(1)
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-flash-latest')
-
-TELEGRAM_TOKEN = config.get("telegram_token", "")
-ALLOWED_CHAT_ID = str(config.get("telegram_chat_id", ""))
+# 제미나이 클라이언트 초기화 (신규 SDK 형식)
+client = genai.Client(api_key=GEMINI_API_KEY)
+GEN_MODEL = 'gemini-2.0-flash' # 최신 모델로 업그레이드
 
 TRADING_ENV = os.environ.get("TRADING_ENV", "vps")
 
@@ -166,9 +152,16 @@ async def evaluate_stock_with_ai(stock_code: str, stock_name: str, price: float,
     {{"action": "BUY" 또는 "HOLD", "reason": "이유 요약 (충분한 설명 포함)"}}
     """
     try:
-        resp = await asyncio.to_thread(model.generate_content, prompt)
-        text = resp.text.strip().replace("```json", "").replace("```", "").strip()
-        result = json.loads(text)
+        # 신규 SDK (google-genai) 방식으로 변경
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=GEN_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type='application/json'
+            )
+        )
+        result = json.loads(response.text)
         return result
     except Exception as e:
         logger.error(f"AI 평가 실패 ({stock_code}): {e}")
