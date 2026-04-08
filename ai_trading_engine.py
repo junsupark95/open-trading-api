@@ -110,7 +110,10 @@ system_status = {
 def init_kis_api():
     logger.info(f"KIS API 인증 초기화 (환경 무조건 {TRADING_ENV} 적용)")
     try:
-        ka.auth(svr=TRADING_ENV, product="01")
+        auth_ok = ka.auth(svr=TRADING_ENV, product="01")
+        if not auth_ok:
+            logger.error("KIS API 인증 실패: auth()가 False를 반환했습니다.")
+            return False
         database.init_db()
         return True
     except Exception as e:
@@ -326,4 +329,3 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     uvicorn.run("ai_trading_engine:app", host="0.0.0.0", port=8080, reload=False)
-

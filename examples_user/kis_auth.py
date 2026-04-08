@@ -251,8 +251,8 @@ def auth(svr="prod", product=_cfg["my_prod"], url=None):
             ).access_token_token_expired  # 토큰값 만료일시 가져오기
             save_token(my_token, my_expired)  # 새로 발급 받은 토큰 저장
         else:
-            print("Get Authentification token fail!\nYou have to restart your app!!!")
-            return
+            logging.error("Get Authentification token fail! You have to restart your app!!!")
+            return False
     else:
         my_token = saved_token  # 기존 발급 토큰 확인되어 기존 토큰 사용
 
@@ -268,6 +268,8 @@ def auth(svr="prod", product=_cfg["my_prod"], url=None):
 
     if _DEBUG:
         print(f"[{_last_auth_time}] => get AUTH Key completed!")
+
+    return True
 
 
 # end of initialize, 토큰 재발급, 토큰 발급시 유효시간 1일
@@ -291,6 +293,35 @@ def smart_sleep():
 
 def getTREnv():
     return _TRENV
+
+def _is_valid_trenv(trenv):
+    required_fields = ("my_url", "my_acct", "my_prod", "my_app", "my_sec")
+    for field in required_fields:
+        if not hasattr(trenv, field):
+            return False
+        if getattr(trenv, field) in (None, ""):
+            return False
+    return True
+
+def _ensure_trenv():
+    if _is_valid_trenv(getTREnv()):
+        return True
+
+    svr = os.environ.get("TRADING_ENV", "vps")
+    product = os.environ.get("KIS_PRODUCT", _cfg.get("my_prod", "01"))
+    logging.warning(
+        f"KIS 인증 컨텍스트가 비정상입니다. 자동 재인증 시도(svr={svr}, product={product})."
+    )
+    try:
+        auth_ok = auth(svr=svr, product=product)
+        if not auth_ok:
+            logging.error("KIS 자동 재인증 실패: auth()가 False를 반환했습니다.")
+            return False
+    except Exception as e:
+        logging.error(f"KIS 자동 재인증 실패: {e}")
+        return False
+
+    return _is_valid_trenv(getTREnv())
 
 
 # 주문 API에서 사용할 hash key값을 받아 header에 설정해 주는 함수
@@ -440,6 +471,9 @@ class APIRespError(APIResp):
 def _url_fetch(
         api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=False, hashFlag=True
 ):
+    if not _ensure_trenv():
+        return APIRespError(500, "KIS auth env is not initialized")
+
     url = f"{getTREnv().my_url}{api_url}"
 
     headers = _getBaseHeader()  # 기본 header 값 정리
