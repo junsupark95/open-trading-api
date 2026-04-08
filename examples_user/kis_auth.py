@@ -292,6 +292,32 @@ def smart_sleep():
 def getTREnv():
     return _TRENV
 
+def _is_valid_trenv(trenv):
+    required_fields = ("my_url", "my_acct", "my_prod", "my_app", "my_sec")
+    for field in required_fields:
+        if not hasattr(trenv, field):
+            return False
+        if getattr(trenv, field) in (None, ""):
+            return False
+    return True
+
+def _ensure_trenv():
+    if _is_valid_trenv(getTREnv()):
+        return True
+
+    svr = os.environ.get("TRADING_ENV", "vps")
+    product = os.environ.get("KIS_PRODUCT", _cfg.get("my_prod", "01"))
+    logging.warning(
+        f"KIS 인증 컨텍스트가 비정상입니다. 자동 재인증 시도(svr={svr}, product={product})."
+    )
+    try:
+        auth(svr=svr, product=product)
+    except Exception as e:
+        logging.error(f"KIS 자동 재인증 실패: {e}")
+        return False
+
+    return _is_valid_trenv(getTREnv())
+
 
 # 주문 API에서 사용할 hash key값을 받아 header에 설정해 주는 함수
 # 현재는 hash key 필수 사항아님, 생략가능, API 호출과정에서 변조 우려를 하는 경우 사용
@@ -440,6 +466,9 @@ class APIRespError(APIResp):
 def _url_fetch(
         api_url, ptr_id, tr_cont, params, appendHeaders=None, postFlag=False, hashFlag=True
 ):
+    if not _ensure_trenv():
+        return APIRespError(500, "KIS auth env is not initialized")
+
     url = f"{getTREnv().my_url}{api_url}"
 
     headers = _getBaseHeader()  # 기본 header 값 정리
