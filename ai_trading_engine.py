@@ -56,7 +56,7 @@ if not GEMINI_API_KEY:
 
 # 제미나이 클라이언트 초기화 (신규 SDK 형식)
 client = genai.Client(api_key=GEMINI_API_KEY)
-GEN_MODEL = 'gemini-2.0-flash' # 최신 모델로 업그레이드
+GEN_MODEL = 'gemini-3.1-flash-lite-preview' # 일일 500회 무료 한도를 제공하는 최신 Lite 탑재
 
 TRADING_ENV = os.environ.get("TRADING_ENV", "vps")
 
@@ -163,7 +163,24 @@ def get_market_mode():
     else:
         return "STANDBY"
 
+# 무료 티어 관리를 위한 일일 요청 횟수 카운터
+daily_ai_requests = 0
+last_request_date = datetime.now(KST).date()
+
 async def evaluate_stock_with_ai(stock_code: str, stock_name: str, price: float, vol: float, vol_ratio: str, is_pre_market=False) -> dict:
+    global daily_ai_requests, last_request_date
+    
+    # 자정이 지나면 카운터 초기화
+    current_date = datetime.now(KST).date()
+    if current_date != last_request_date:
+        daily_ai_requests = 0
+        last_request_date = current_date
+        
+    # 구글 무료티어(하루 1500회) 안전선인 하루 1000회 초과 시 완전 차단
+    if daily_ai_requests >= 1000:
+        logger.warning("일일 AI 무료 API 호출 한도(1000회)를 초과하여 매매 판단을 보류(HOLD)합니다.")
+        return {"action": "HOLD", "reason": "일일 무료 AI 호출 한도 도달로 인한 매수 보류"}
+
     mode_str = "장전 예상체결가" if is_pre_market else "장중 거래량 급증"
     prompt = f"""
     당신은 세계 최고의 '로스카메론(Ross Cameron)'식 모멘텀 데이트레이딩 전문가입니다.
@@ -178,6 +195,7 @@ async def evaluate_stock_with_ai(stock_code: str, stock_name: str, price: float,
     {{"action": "BUY" 또는 "HOLD", "reason": "이유 요약 (충분한 설명 포함)"}}
     """
     try:
+        daily_ai_requests += 1 # 요청 카운트 증가
         # 신규 SDK (google-genai) 방식으로 변경
         response = await asyncio.to_thread(
             client.models.generate_content,
@@ -294,7 +312,7 @@ async def hourly_balance_report():
             )
             if not bal_res2.empty:
                 total_amt = float(bal_res2['tot_evlu_amt'].iloc[0])
-                p_l = float(bal_res2['evlu_pfls_amt'].iloc[0])
+                p_l = float(bal_res2['evlu_pfls_smtl_amt'].iloc[0])
                 msg = f"📊 [정기 잔고 리포트]\n총 평가액: {total_amt:,.0f}원\n수익금: {p_l:,.0f}원"
                 await send_telegram_alert(msg)
         except Exception as e:
