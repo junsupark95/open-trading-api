@@ -61,6 +61,8 @@ GEN_MODEL = 'gemini-3.1-flash-lite-preview' # 일일 500회 무료 한도를 제
 
 TRADING_ENV = os.environ.get("TRADING_ENV", "vps")
 
+from fastapi.middleware.cors import CORSMiddleware
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
