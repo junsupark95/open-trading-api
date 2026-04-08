@@ -107,10 +107,36 @@ system_status = {
     "p_l_ratio": 0.0
 }
 
+def _is_valid_trading_env(trenv) -> bool:
+    required_fields = ("my_url", "my_acct", "my_prod")
+    return all(hasattr(trenv, field) for field in required_fields)
+
+def ensure_kis_auth() -> bool:
+    """KIS 인증 상태를 검증하고 필요 시 재인증한다."""
+    trenv = ka.getTREnv()
+    if _is_valid_trading_env(trenv):
+        return True
+
+    logger.warning("KIS 인증 컨텍스트가 비정상입니다. 재인증을 시도합니다.")
+    try:
+        ka.auth(svr=TRADING_ENV, product="01")
+    except Exception as e:
+        logger.error(f"KIS 재인증 실패: {e}")
+        return False
+
+    trenv = ka.getTREnv()
+    if not _is_valid_trading_env(trenv):
+        logger.error("KIS 인증 컨텍스트 초기화 실패: getTREnv()에 필수 필드가 없습니다.")
+        return False
+    return True
+
 def init_kis_api():
     logger.info(f"KIS API 인증 초기화 (환경 무조건 {TRADING_ENV} 적용)")
     try:
         ka.auth(svr=TRADING_ENV, product="01")
+        if not ensure_kis_auth():
+            logger.error("KIS API 인증 초기화 실패: 인증 컨텍스트가 유효하지 않습니다.")
+            return False
         database.init_db()
         return True
     except Exception as e:
@@ -168,6 +194,9 @@ async def evaluate_stock_with_ai(stock_code: str, stock_name: str, price: float,
         return {"action": "HOLD", "reason": f"AI 통신 오류: {e}"}
 
 async def verify_trade_completion(trade_id, stock_code, odno):
+    if not ensure_kis_auth():
+        logger.error("체결 확인 중단: KIS 인증 상태가 유효하지 않습니다.")
+        return
     trenv = ka.getTREnv()
     today = datetime.now(KST).strftime("%Y%m%d")
     
@@ -198,6 +227,9 @@ async def verify_trade_completion(trade_id, stock_code, odno):
     logger.warning(f"⚠️ [주문번호:{odno}] 10초 내 체결 미확인 (지연 가능성)")
 
 async def execute_trade(stock_code: str, stock_name: str, price: float, ai_reason: str, ord_dvsn="01"):
+    if not ensure_kis_auth():
+        logger.error("주문 중단: KIS 인증 상태가 유효하지 않습니다.")
+        return
     trenv = ka.getTREnv()
     # 1. 먼저 DB에 PENDING 상태로 로깅 (매수중 표시)
     trade_id = database.log_trade(stock_code, stock_name, "BUY", price, 0, "PENDING", ai_reason)
@@ -251,6 +283,9 @@ async def hourly_balance_report():
     while True:
         await asyncio.sleep(3600)
         try:
+            if not ensure_kis_auth():
+                logger.error("리포트 중단: KIS 인증 상태가 유효하지 않습니다.")
+                continue
             trenv = ka.getTREnv()
             _, bal_res2 = await asyncio.to_thread(
                 inquire_balance, env_dv="demo", cano=trenv.my_acct, acnt_prdt_cd=trenv.my_prod,
@@ -281,6 +316,10 @@ async def scan_and_trade_loop():
             continue
             
         try:
+            if not ensure_kis_auth():
+                logger.error("루프 일시중단: KIS 인증 상태가 유효하지 않습니다.")
+                await asyncio.sleep(60)
+                continue
             # 08:51 장전 예상체결가 분석
             now = datetime.now(KST)
             if current_mode == "PRE_MARKET" and now.hour == 8 and now.minute == 51 and not has_done_premarket:
@@ -326,4 +365,3 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     uvicorn.run("ai_trading_engine:app", host="0.0.0.0", port=8080, reload=False)
-
