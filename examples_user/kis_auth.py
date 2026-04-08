@@ -60,6 +60,7 @@ _cfg = {
     "paper_app": os.environ.get("KIS_PAPER_APP"),
     "paper_sec": os.environ.get("KIS_PAPER_SEC"),
     "my_paper_stock": os.environ.get("KIS_PAPER_ACCOUNT"),
+    "my_htsid": os.environ.get("KIS_HTS_ID", ""),
     "prod": "https://openapi.koreainvestment.com:9443",
     "vps": "https://openapivts.koreainvestment.com:29443",
     "ops": "ws://ops.koreainvestment.com:21000",
@@ -177,34 +178,34 @@ def changeTREnv(token_key, svr="prod", product=_cfg["my_prod"]):
         _isPaper = True
         _smartSleep = 0.5
 
-    cfg["my_app"] = _cfg[ak1]
-    cfg["my_sec"] = _cfg[ak2]
+    cfg["my_app"] = _cfg.get(ak1, "")
+    cfg["my_sec"] = _cfg.get(ak2, "")
 
     if svr == "prod" and product == "01":  # 실전투자 주식투자, 위탁계좌, 투자계좌
-        cfg["my_acct"] = _cfg["my_acct_stock"]
+        cfg["my_acct"] = _cfg.get("my_acct_stock", "")
     elif svr == "prod" and product == "03":  # 실전투자 선물옵션(파생)
-        cfg["my_acct"] = _cfg["my_acct_future"]
+        cfg["my_acct"] = _cfg.get("my_acct_future", "")
     elif svr == "prod" and product == "08":  # 실전투자 해외선물옵션(파생)
-        cfg["my_acct"] = _cfg["my_acct_future"]
+        cfg["my_acct"] = _cfg.get("my_acct_future", "")
     elif svr == "prod" and product == "22":  # 실전투자 개인연금저축계좌
-        cfg["my_acct"] = _cfg["my_acct_stock"]
+        cfg["my_acct"] = _cfg.get("my_acct_stock", "")
     elif svr == "prod" and product == "29":  # 실전투자 퇴직연금계좌
-        cfg["my_acct"] = _cfg["my_acct_stock"]
+        cfg["my_acct"] = _cfg.get("my_acct_stock", "")
     elif svr == "vps" and product == "01":  # 모의투자 주식투자, 위탁계좌, 투자계좌
-        cfg["my_acct"] = _cfg["my_paper_stock"]
+        cfg["my_acct"] = _cfg.get("my_paper_stock", "")
     elif svr == "vps" and product == "03":  # 모의투자 선물옵션(파생)
-        cfg["my_acct"] = _cfg["my_paper_future"]
+        cfg["my_acct"] = _cfg.get("my_paper_future", "")
 
     cfg["my_prod"] = product
-    cfg["my_htsid"] = _cfg["my_htsid"]
-    cfg["my_url"] = _cfg[svr]
+    cfg["my_htsid"] = _cfg.get("my_htsid", "")
+    cfg["my_url"] = _cfg.get(svr, "")
 
     try:
         my_token = _TRENV.my_token
     except AttributeError:
         my_token = ""
     cfg["my_token"] = my_token if token_key else token_key
-    cfg["my_url_ws"] = _cfg["ops" if svr == "prod" else "vops"]
+    cfg["my_url_ws"] = _cfg.get("ops" if svr == "prod" else "vops", "")
 
     # print(cfg)
     _setTRENV(cfg)
@@ -232,14 +233,14 @@ def auth(svr="prod", product=_cfg["my_prod"], url=None):
         ak2 = "paper_sec"  # 앱시크리트 (모의투자용)
 
     # 앱키, 앱시크리트 가져오기
-    p["appkey"] = _cfg[ak1]
-    p["appsecret"] = _cfg[ak2]
+    p["appkey"] = _cfg.get(ak1, "")
+    p["appsecret"] = _cfg.get(ak2, "")
 
     # 기존 발급된 토큰이 있는지 확인
     saved_token = read_token()  # 기존 발급 토큰 확인
     # print("saved_token: ", saved_token)
     if saved_token is None:  # 기존 발급 토큰 확인이 안되면 발급처리
-        url = f"{_cfg[svr]}/oauth2/tokenP"
+        url = f"{_cfg.get(svr, '')}/oauth2/tokenP"
         res = requests.post(
             url, data=json.dumps(p), headers=_getBaseHeader()
         )  # 토큰 발급
@@ -537,10 +538,10 @@ def auth_ws(svr="prod", product=_cfg["my_prod"]):
         ak1 = "paper_app"
         ak2 = "paper_sec"
 
-    p["appkey"] = _cfg[ak1]
-    p["secretkey"] = _cfg[ak2]
+    p["appkey"] = _cfg.get(ak1, "")
+    p["secretkey"] = _cfg.get(ak2, "")
 
-    url = f"{_cfg[svr]}/oauth2/Approval"
+    url = f"{_cfg.get(svr, '')}/oauth2/Approval"
     res = requests.post(url, data=json.dumps(p), headers=_getBaseHeader())  # 토큰 발급
     rescode = res.status_code
     if rescode == 200:  # 토큰 정상 발급
