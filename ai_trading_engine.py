@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime, time
 import pytz
 from logging.handlers import RotatingFileHandler
+from contextlib import asynccontextmanager
 
 # 타임존 설정 (KST)
 KST = pytz.timezone('Asia/Seoul')
@@ -60,8 +61,27 @@ GEN_MODEL = 'gemini-3.1-flash-lite-preview' # 일일 500회 무료 한도를 제
 
 TRADING_ENV = os.environ.get("TRADING_ENV", "vps")
 
-from fastapi.middleware.cors import CORSMiddleware
-app = FastAPI(title="NeuroTrade AI API Server")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    logger.info(f"🚀 NeuroTrade AI 엔진 서버 시작 (환경: {TRADING_ENV})")
+    if init_kis_api():
+        system_status["is_running"] = True
+        # 백그라운드 태스크 시작
+        scan_task = asyncio.create_task(scan_and_trade_loop())
+        report_task = asyncio.create_task(hourly_balance_report())
+        await send_telegram_alert(f"🚀 NeuroTrade AI 엔진 서버가 시작되었습니다. (환경: {TRADING_ENV})")
+        yield
+        # Shutdown logic
+        system_status["is_running"] = False
+        scan_task.cancel()
+        report_task.cancel()
+        logger.info("🛑 NeuroTrade AI 엔진 서버 종료")
+    else:
+        logger.critical("❌ KIS API 인증 실패로 서버를 시작할 수 없습니다.")
+        yield
+
+app = FastAPI(title="NeuroTrade AI API Server", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -112,35 +132,25 @@ def _is_valid_trading_env(trenv) -> bool:
     return all(hasattr(trenv, field) for field in required_fields)
 
 def ensure_kis_auth() -> bool:
-    """KIS 인증 상태를 검증하고 필요 시 재인증한다."""
-    trenv = ka.getTREnv()
-    if _is_valid_trading_env(trenv):
-        return True
-
-    logger.warning("KIS 인증 컨텍스트가 비정상입니다. 재인증을 시도합니다.")
+    """KIS 인증 상태를 검증하고 필요 시 재인증한다. (kis_auth.py의 내부 방어 로직 활용)"""
     try:
-        ka.auth(svr=TRADING_ENV, product="01")
+        if ka._ensure_trenv(): # kis_auth 내부의 자동 복구 기능 활용
+            return True
+        return False
     except Exception as e:
-        logger.error(f"KIS 재인증 실패: {e}")
+        logger.error(f"KIS 인증 검증 실패: {e}")
         return False
-
-    trenv = ka.getTREnv()
-    if not _is_valid_trading_env(trenv):
-        logger.error("KIS 인증 컨텍스트 초기화 실패: getTREnv()에 필수 필드가 없습니다.")
-        return False
-    return True
 
 def init_kis_api():
-    logger.info(f"KIS API 인증 초기화 (환경 무조건 {TRADING_ENV} 적용)")
+    """시스템 초기화 시 KIS API 인증 및 DB 연결"""
+    logger.info("KIS API 및 데이터베이스 초기화 중...")
     try:
-        ka.auth(svr=TRADING_ENV, product="01")
-        if not ensure_kis_auth():
-            logger.error("KIS API 인증 초기화 실패: 인증 컨텍스트가 유효하지 않습니다.")
-            return False
         database.init_db()
-        return True
+        # ka.auth() 내부에서 이미 환경변수를 우선 참조함
+        ka.auth(svr=TRADING_ENV, product="01")
+        return ensure_kis_auth()
     except Exception as e:
-        logger.error(f"인증 실패: {e}")
+        logger.error(f"초기화 실패: {e}")
         return False
 
 async def send_telegram_alert(msg: str):
@@ -369,17 +379,8 @@ async def scan_and_trade_loop():
             logger.error(f"루프 에러: {e}")
         await asyncio.sleep(60)
 
-@app.on_event("startup")
-async def startup_event():
-    if init_kis_api():
-        system_status["is_running"] = True
-        asyncio.create_task(scan_and_trade_loop())
-        asyncio.create_task(hourly_balance_report())
-        await send_telegram_alert("🚀 NeuroTrade AI 엔진 서버가 시작되었습니다. (스케줄링 활성)")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    system_status["is_running"] = False
+# 기존 on_event 핸들러는 lifespan으로 대체되었으므로 삭제
 
 if __name__ == "__main__":
-    uvicorn.run("ai_trading_engine:app", host="0.0.0.0", port=8080, reload=False)
+    # access_log=False 설정을 통해 대시보드 폴링 로그(소음) 제거
+    uvicorn.run("ai_trading_engine:app", host="0.0.0.0", port=8080, reload=False, access_log=False)
