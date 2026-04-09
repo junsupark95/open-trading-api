@@ -9,6 +9,7 @@ RUN npm run build
 # 2단계: 백엔드 및 합계 (Python)
 FROM python:3.10-slim
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 # 시스템 의존성 설치
 RUN apt-get update && apt-get install -y \
