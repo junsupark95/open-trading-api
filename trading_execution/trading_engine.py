@@ -24,6 +24,7 @@ class TradingEngine:
         self.state_machines: Dict[str, TradingStateMachine] = {}
         self.is_running = False
         self.balance = {"total_asset": 0, "pnl_amt": 0, "cash": 0}
+        self.last_scan_time = None
         
     async def start(self):
         """엔진 구동 시작"""
@@ -106,7 +107,10 @@ class TradingEngine:
             self.balance = await asyncio.to_thread(self.adapter.get_balance)
             logger.info(f"📊 잔고 동기화 완료: 자산 {self.balance['total_asset']:,}원")
         except Exception as e:
-            logger.error(f"❌ 잔고 동기화 에러: {e}")
+            if not is_market_open():
+                logger.warning(f"ℹ️ 장외 시간 잔고 조회 제한 (KIS 서버 응답 없음)")
+            else:
+                logger.error(f"❌ 잔고 동기화 에러: {e}")
 
     async def run_cycle(self):
         """단일 매매 사이클 (스캔 -> 분석 -> 리스크 -> 주문)"""
@@ -115,6 +119,7 @@ class TradingEngine:
             logger.info("💤 현재는 장외 시간입니다. 엔진이 휴식 모드로 동작합니다.")
             return
 
+        self.last_scan_time = get_kst_now().isoformat()
         now = get_kst_now()
         
         # 0. 장중 모니터링: 10분마다 잔고 동기화
@@ -199,7 +204,7 @@ class TradingEngine:
             "is_running": self.is_running,
             "market_mode": get_market_status_str(),
             "is_market_open": is_market_open(),
-            "last_scan_time": get_kst_now().isoformat(),
+            "last_scan_time": self.last_scan_time,
             "total_scans": len(self.state_machines),
             "total_trades": 0,
             "current_balance": asset,
