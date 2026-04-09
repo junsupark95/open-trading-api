@@ -8,6 +8,7 @@ from trading_strategy.models import TradingState, StrategyConfig, RiskConfig
 from trading_strategy.state_machine import TradingStateMachine
 from trading_strategy.ai_evaluator import AIEvaluator
 from trading_risk.rules import RiskManager
+from trading_strategy.utils import is_market_open, get_market_status_str, get_kst_now
 from trading_data.db import SessionLocal, log_scan, log_trade
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,12 @@ class TradingEngine:
 
     async def run_cycle(self):
         """단일 매매 사이클 (스캔 -> 분석 -> 리스크 -> 주문)"""
-        now = datetime.now()
+        # [고도화] 장중 시간 체크
+        if not is_market_open():
+            logger.info("💤 현재는 장외 시간입니다. 엔진이 휴식 모드로 동작합니다.")
+            return
+
+        now = get_kst_now()
         
         # 0. 장중 모니터링: 10분마다 잔고 동기화
         if now.minute % 10 == 0:
@@ -191,10 +197,11 @@ class TradingEngine:
         
         return {
             "is_running": self.is_running,
-            "market_mode": "ACTIVE" if self.is_running else "IDLE",
-            "last_scan_time": datetime.now().isoformat(), # 실시간 데이터
-            "total_scans": len(self.state_machines), # 간단 지표
-            "total_trades": 0, # 추후 DB 카운트 연동 가능
+            "market_mode": get_market_status_str(),
+            "is_market_open": is_market_open(),
+            "last_scan_time": get_kst_now().isoformat(),
+            "total_scans": len(self.state_machines),
+            "total_trades": 0,
             "current_balance": asset,
             "seed_money": seed,
             "total_asset": asset,
