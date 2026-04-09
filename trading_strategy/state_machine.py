@@ -12,6 +12,12 @@ class TradingStateMachine:
         self.state = TradingState.IDLE
         self.last_transition_time = None
         
+        # 거래 추적 필드
+        self.entry_price: float = 0
+        self.qty: int = 0
+        self.order_no: Optional[str] = None
+        self.pnl_pct: float = 0.0
+        
     def transition_to(self, new_state: TradingState):
         """명시적 상태 전이"""
         old_state = self.state

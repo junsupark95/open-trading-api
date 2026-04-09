@@ -28,6 +28,5 @@ COPY --from=frontend-builder /app/web_dashboard/dist ./web_dashboard/dist
 # 포트 설정
 EXPOSE 8080
 
-# 실행 명령
-# 데이터베이스 보존을 위해 /data 디렉토리를 사용하는 것이 좋으나 실습에선 현재# 실행 명령어 (구조화된 main.py 실행)
+# 실행 명령어 (구조화된 main.py 실행)
 CMD ["python", "main.py"]

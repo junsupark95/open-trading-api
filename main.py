@@ -7,12 +7,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response
 from contextlib import asynccontextmanager
 
-from brokers.kis.client import KISClient
-from brokers.kis.adapters import KISAdapter
-from strategy.models import StrategyConfig, RiskConfig
-from strategy.ai_evaluator import AIEvaluator
-from execution.trading_engine import TradingEngine
-import data.db as db_module
+from trading_broker.kis.client import KISClient
+from trading_broker.kis.adapters import KISAdapter
+from trading_strategy.models import StrategyConfig, RiskConfig
+from trading_strategy.ai_evaluator import AIEvaluator
+from trading_execution.trading_engine import TradingEngine
+import trading_data.db as db_module
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

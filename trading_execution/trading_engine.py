@@ -3,12 +3,12 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any
 
-from brokers.kis.adapters import KISAdapter
-from strategy.models import TradingState, StrategyConfig, RiskConfig
-from strategy.state_machine import TradingStateMachine
-from strategy.ai_evaluator import AIEvaluator
-from risk.rules import RiskManager
-from data.db import SessionLocal, log_scan, log_trade
+from trading_broker.kis.adapters import KISAdapter
+from trading_strategy.models import TradingState, StrategyConfig, RiskConfig
+from trading_strategy.state_machine import TradingStateMachine
+from trading_strategy.ai_evaluator import AIEvaluator
+from trading_risk.rules import RiskManager
+from trading_data.db import SessionLocal, log_scan, log_trade
 
 logger = logging.getLogger(__name__)
 
@@ -29,16 +29,75 @@ class TradingEngine:
         self.is_running = True
         logger.info("🚀 NeuroTrade 엔진 구동 시작")
         
-        # 잔고 초기 동기화
+        # 1. DB에서 활성 포지션 복구
+        await self.load_states_from_db()
+        
+        # 2. 잔고 초기 동기화
         await self.sync_balance()
         
-        # 주기적 매매 루프 루프 실행
+        # 3. 주기적 매매 루프 실행
         while self.is_running:
             try:
                 await self.run_cycle()
+                await self.monitor_active_positions()
             except Exception as e:
                 logger.error(f"❌ 매매 루프 오류: {e}")
-            await asyncio.sleep(60) # 최적화된 1분 주기
+            await asyncio.sleep(60)
+
+    async def load_states_from_db(self):
+        """서버 재시작 시 DB에서 진행 중인 매매 정보를 읽어 상태 머신 복구"""
+        try:
+            with SessionLocal() as db:
+                from trading_data.db import get_recent_trades
+                recent_trades = get_recent_trades(db, limit=20)
+                # 'SUCCESS' 상태인 매수 주문을 찾아 상태 머신 복구 (단순 예시)
+                for trade in recent_trades:
+                    if trade.action == "BUY" and trade.status == "SUCCESS":
+                        # 이미 매도된 종목인지 확인하는 로직 등 추가 필요
+                        if trade.stock_code not in self.state_machines:
+                            sm = TradingStateMachine(trade.stock_code)
+                            sm.state = TradingState.POSITION_OPEN
+                            sm.entry_price = trade.price
+                            sm.qty = trade.qty
+                            sm.order_no = trade.order_no
+                            self.state_machines[trade.stock_code] = sm
+                            logger.info(f"💾 [{trade.stock_code}] DB에서 상태 복구 완료 (진입가: {trade.price})")
+        except Exception as e:
+            logger.error(f"❌ 상태 복구 실패: {e}")
+
+    async def monitor_active_positions(self):
+        """보유 종목에 대해 실시간 가격을 감시하여 익절/손절/시간청산 처리"""
+        for symbol, sm in self.state_machines.items():
+            if sm.state == TradingState.POSITION_OPEN:
+                try:
+                    current_price = await asyncio.to_thread(self.adapter.get_stock_price, symbol)
+                    if current_price > 0:
+                        pnl_pct = (current_price - sm.entry_price) / sm.entry_price * 100
+                        sm.pnl_pct = round(pnl_pct, 2)
+                        
+                        # 리스크 규칙 체크 (익절/손절)
+                        if pnl_pct <= self.risk_manager.config.stop_loss_pct:
+                            logger.warning(f"🚨 [{symbol}] 손절 조건 충족 ({pnl_pct}%) -> 매도 실행")
+                            await self.exit_position(symbol, "STOP_LOSS")
+                        elif pnl_pct >= self.risk_manager.config.take_profit_pct:
+                            logger.info(f"🎯 [{symbol}] 익절 조건 충족 ({pnl_pct}%) -> 매도 실행")
+                            await self.exit_position(symbol, "TAKE_PROFIT")
+                except Exception as e:
+                    logger.error(f"❌ [{symbol}] 모니터링 에러: {e}")
+
+    async def exit_position(self, symbol: str, reason_event: str):
+        """포지션 청산 (매도 주문 제출)"""
+        sm = self.state_machines[symbol]
+        sm.update(reason_event)
+        
+        if sm.state == TradingState.SELL_ORDER_SENT:
+            res = await asyncio.to_thread(self.adapter.place_order, symbol, sm.qty, 0, "SELL")
+            if res['status'] == "SUCCESS":
+                 with SessionLocal() as db:
+                     log_trade(db, symbol, "", "SELL", 0, sm.qty, "SUCCESS", f"청산 사유: {reason_event}", res['order_no'])
+                 sm.update("ORDER_FILLED")
+            else:
+                 sm.update("ERROR")
 
     async def sync_balance(self):
         """실시간 잔고 동기화"""
@@ -100,6 +159,11 @@ class TradingEngine:
                                     res = await asyncio.to_thread(self.adapter.place_order, symbol, qty, price, "BUY")
                                     if res['status'] == "SUCCESS":
                                         sm.update("ORDER_PLACED")
+                                        # 상태 머신에 거래 정보 기록
+                                        sm.entry_price = price
+                                        sm.qty = qty
+                                        sm.order_no = res['order_no']
+                                        
                                         # 주문 DB 기록
                                         with SessionLocal() as db:
                                              log_trade(db, symbol, name, "BUY", price, qty, "SUCCESS", ai_res['reason'], res['order_no'])

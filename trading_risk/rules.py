@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 import logging
-from strategy.models import RiskConfig
+from trading_strategy.models import RiskConfig
 
 logger = logging.getLogger(__name__)
 
