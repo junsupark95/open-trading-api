@@ -72,12 +72,14 @@ async def lifespan(app: FastAPI):
         # 백그라운드 태스크 시작
         scan_task = asyncio.create_task(scan_and_trade_loop())
         report_task = asyncio.create_task(hourly_balance_report())
+        sync_task = asyncio.create_task(periodic_balance_sync())
         await send_telegram_alert(f"🚀 NeuroTrade AI 엔진 서버가 시작되었습니다. (환경: {TRADING_ENV})")
         yield
         # Shutdown logic
         system_status["is_running"] = False
         scan_task.cancel()
         report_task.cancel()
+        sync_task.cancel()
         logger.info("🛑 NeuroTrade AI 엔진 서버 종료")
     else:
         logger.critical("❌ KIS API 인증 실패로 서버를 시작할 수 없습니다.")
@@ -126,8 +128,15 @@ system_status = {
     "total_scans": 0,
     "total_trades": 0,
     "current_balance": 0,
+    "seed_money": 10000000.0, # 기본 시드 (최초 잔고 조회 시 업데이트)
+    "total_asset": 0,
+    "p_l_amt": 0,
     "p_l_ratio": 0.0
 }
+
+# 중복 분석 방지를 위한 캐시 (최근 15분 내 동일 종목 재분석 차단)
+# { "stock_code": datetime_object }
+last_analyzed_cache = {}
 
 def _is_valid_trading_env(trenv) -> bool:
     required_fields = ("my_url", "my_acct", "my_prod")
@@ -272,7 +281,17 @@ async def execute_trade(stock_code: str, stock_name: str, price: float, ai_reaso
         )
         holdings = len(bal_res1) if not bal_res1.empty else 0
         total_balance = float(bal_res2['tot_evlu_amt'].iloc[0]) if not bal_res2.empty and 'tot_evlu_amt' in bal_res2.columns else 10000000.0
+        
+        # 시스템 상태 정밀 업데이트
         system_status["current_balance"] = total_balance
+        system_status["total_asset"] = total_balance
+        if not bal_res2.empty:
+             p_l = float(bal_res2.get('evlu_pfls_smtl_amt', [0]).iloc[0])
+             system_status["p_l_amt"] = p_l
+             # 시드 머니 계산 (자산 - 수익금)
+             seed = total_balance - p_l
+             system_status["seed_money"] = seed
+             system_status["p_l_ratio"] = round((p_l / seed * 100), 2) if seed > 0 else 0.0
     except Exception as e:
         logger.error(f"잔고 조회 실패: {e}")
         database.update_trade_status(trade_id, "FAILED")
@@ -325,10 +344,41 @@ async def hourly_balance_report():
             if not bal_res2.empty:
                 total_amt = float(bal_res2['tot_evlu_amt'].iloc[0])
                 p_l = float(bal_res2['evlu_pfls_smtl_amt'].iloc[0])
+                # 시스템 상태 업데이트
+                system_status["total_asset"] = total_amt
+                system_status["p_l_amt"] = p_l
+                seed = total_amt - p_l
+                system_status["seed_money"] = seed
+                system_status["p_l_ratio"] = round((p_l / seed * 100), 2) if seed > 0 else 0.0
+                
                 msg = f"📊 [정기 잔고 리포트]\n총 평가액: {total_amt:,.0f}원\n수익금: {p_l:,.0f}원"
                 await send_telegram_alert(msg)
         except Exception as e:
             logger.error(f"리포트 에러: {e}")
+
+async def periodic_balance_sync():
+    """10분마다 잔고 데이터를 정밀하게 동기화 (API 호출 낭비 방지)"""
+    while True:
+        try:
+            if system_status["is_running"] and ensure_kis_auth():
+                trenv = ka.getTREnv()
+                _, bal_res2 = await asyncio.to_thread(
+                    inquire_balance, env_dv="demo", cano=trenv.my_acct, acnt_prdt_cd=trenv.my_prod,
+                    afhr_flpr_yn="N", inqr_dvsn="01", unpr_dvsn="01", fund_sttl_icld_yn="N", 
+                    fncg_amt_auto_rdpt_yn="N", prcs_dvsn="00"
+                )
+                if not bal_res2.empty:
+                    total_amt = float(bal_res2['tot_evlu_amt'].iloc[0])
+                    p_l = float(bal_res2['evlu_pfls_smtl_amt'].iloc[0])
+                    seed = total_amt - p_l
+                    system_status["total_asset"] = total_amt
+                    system_status["p_l_amt"] = p_l
+                    system_status["seed_money"] = seed
+                    system_status["p_l_ratio"] = round((p_l / seed * 100), 2) if seed > 0 else 0.0
+                    logger.debug("잔고 데이터 실시간 동기화 완료")
+        except Exception as e:
+            logger.error(f"잔고 동기화 에러: {e}")
+        await asyncio.sleep(600) # 10분 주기
 
 async def scan_and_trade_loop():
     logger.info("거래 루프 시작")
@@ -364,18 +414,37 @@ async def scan_and_trade_loop():
                         await execute_trade(str(top['mksc_shrn_iscd']), str(top['hts_kor_isnm']), float(top['stck_prpr']), res['reason'])
                 has_done_premarket = True
                 
-            # 정규장 스캐닝 (1분 간격)
+            # 정규장 실시간 스캐닝 (1분 간격, 상위 10위권 분석)
             if current_mode == "ACTIVE":
+                # volume_rank: 상위 30개 정도를 가져와서 필터링
                 df_results = await asyncio.to_thread(volume_rank, "J", "20171", "0000", "0", "1", "000000", "000000", "1000", "150000", "50000", "")
                 system_status["last_scan_time"] = datetime.now(KST).isoformat()
                 system_status["total_scans"] += 1
                 
                 if df_results is not None and not df_results.empty:
-                    ts = df_results.iloc[0]
-                    ai_res = await evaluate_stock_with_ai(str(ts['mksc_shrn_iscd']), str(ts['hts_kor_isnm']), float(ts['stck_prpr']), float(ts['acml_vol']), str(ts['vol_inrt']))
-                    database.log_scan(str(ts['mksc_shrn_iscd']), f"증가율 {ts['vol_inrt']}%", ai_res['action'], ai_res['reason'])
-                    if ai_res['action'] == "BUY":
-                        await execute_trade(str(ts['mksc_shrn_iscd']), str(ts['hts_kor_isnm']), float(ts['stck_prpr']), ai_res['reason'])
+                    # 상위 10개 종목을 순회하며 하나씩 분석 기회 검토
+                    for _, ts in df_results.head(10).iterrows():
+                        code = str(ts['mksc_shrn_iscd'])
+                        name = str(ts['hts_kor_isnm'])
+                        
+                        # 중복 분석 방지: 최근 15분 내에 분석한 적이 있는지 확인
+                        now = datetime.now(KST)
+                        if code in last_analyzed_cache:
+                            last_time = last_analyzed_cache[code]
+                            if (now - last_time).total_seconds() < 900: # 15분
+                                continue # 이미 분석했으므로 스킵 (중복 방지 핵심)
+                        
+                        # AI 분석 시작
+                        ai_res = await evaluate_stock_with_ai(code, name, float(ts['stck_prpr']), float(ts['acml_vol']), str(ts['vol_inrt']))
+                        
+                        # 분석 결과 기록 및 캐시 업데이트
+                        last_analyzed_cache[code] = now
+                        database.log_scan(code, f"증가율 {ts['vol_inrt']}%", ai_res['action'], ai_res['reason'])
+                        
+                        # 매수 결정 시 즉시 실행 (한 번의 루프에서 한 개만 매수하도록 할 수도 있으나 기회 포착 우선)
+                        if ai_res['action'] == "BUY":
+                            await execute_trade(code, name, float(ts['stck_prpr']), ai_res['reason'])
+                            break # 루프 당 한 종목만 매수하여 리스크 관리 (선택 사항)
 
         except Exception as e:
             logger.error(f"루프 에러: {e}")

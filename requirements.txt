@@ -10,6 +10,7 @@ pycryptodome
 pydantic
 google-genai
 psycopg2-binary
+sqlalchemy
 google-api-python-client
 google-auth-httplib2
 google-auth

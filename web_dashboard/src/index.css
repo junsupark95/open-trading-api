@@ -1,17 +1,18 @@
 :root {
   --bg-color: #0F0F12;
-  --bg-panel: rgba(255, 255, 255, 0.03);
-  --border-color: rgba(255, 255, 255, 0.05);
+  --bg-panel: #1A1A1F;
+  --bg-card: #24242B;
+  --border-color: rgba(255, 255, 255, 0.08);
   
-  --text-primary: #FFFFFF;
-  --text-secondary: #8B8B9B;
+  --text-active: #FFFFFF;
+  --text-primary: #EBEBF5;
+  --text-secondary: #8E8E93;
   
-  --neon-green: #00FF9D;
-  --neon-green-dim: rgba(0, 255, 157, 0.15);
-  --intense-red: #FF3366;
-  --intense-red-dim: rgba(255, 51, 102, 0.15);
+  --toss-blue: #3182F6;
+  --toss-red: #F04452;
+  --toss-green: #00D565;
   
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Pretendard', 'Inter', system-ui, -apple-system, sans-serif;
   color-scheme: dark;
   background-color: var(--bg-color);
   color: var(--text-primary);
@@ -21,6 +22,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
@@ -40,135 +42,141 @@ body {
 .glass-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  border-radius: 24px;
   padding: 24px;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.glass-panel:hover {
-  border-color: rgba(255, 255, 255, 0.1);
-  transform: translateY(-2px);
-}
-
-.text-green { color: var(--neon-green); }
-.text-red { color: var(--intense-red); }
+.text-blue { color: var(--toss-blue); }
+.text-green { color: var(--toss-green); }
+.text-red { color: var(--toss-red); }
 .text-dim { color: var(--text-secondary); }
 
 .badge-green {
-  background: var(--neon-green-dim);
-  color: var(--neon-green);
-  padding: 4px 10px;
-  border-radius: 20px;
+  background: rgba(0, 213, 101, 0.1);
+  color: var(--toss-green);
+  padding: 6px 12px;
+  border-radius: 8px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid rgba(0, 255, 157, 0.3);
 }
 
 .badge-red {
-  background: var(--intense-red-dim);
-  color: var(--intense-red);
-  padding: 4px 10px;
-  border-radius: 20px;
+  background: rgba(240, 68, 82, 0.1);
+  color: var(--toss-red);
+  padding: 6px 12px;
+  border-radius: 8px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid rgba(255, 51, 102, 0.3);
 }
 
 /* Layout utilities */
 .dashboard-container {
   display: flex;
-  gap: 24px;
-  padding: 32px;
+  gap: 20px;
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
   height: 100vh;
 }
 
 .sidebar {
-  width: 280px;
+  width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+  flex-shrink: 0;
 }
 
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   overflow-y: auto;
+  padding-right: 4px;
 }
 
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 20px;
 }
 
-h1, h2, h3 { font-weight: 600; letter-spacing: -0.5px; }
-.text-sm { font-size: 0.875rem; }
-.text-xs { font-size: 0.75rem; }
-.text-lg { font-size: 1.125rem; }
-.text-xl { font-size: 1.25rem; }
-.text-2xl { font-size: 1.5rem; }
-.text-3xl { font-size: 2rem; letter-spacing: -1px; }
-
-table {
-  width: 100%;
-  border-collapse: collapse;
+@media (max-width: 1024px) {
+  .dashboard-container {
+    flex-direction: column;
+    height: auto;
+    padding: 16px;
+  }
+  .sidebar {
+    width: 100%;
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
 }
 
-th {
-  text-align: left;
-  padding-bottom: 16px;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-color);
-}
+h1, h2, h3 { font-weight: 700; color: var(--text-active); }
+.text-3xl { font-size: 2.25rem; font-weight: 800; }
 
-td {
-  padding: 16px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-  font-size: 0.875rem;
-}
-
-tr:hover td {
-  background-color: rgba(255, 255, 255, 0.01);
-}
-
-.badge-green { background: rgba(0, 255, 157, 0.1); color: #00FF9D; border: 1px solid rgba(0, 255, 157, 0.2); }
-.badge-red { background: rgba(255, 61, 113, 0.1); color: #FF3D71; border: 1px solid rgba(255, 61, 113, 0.2); }
-.badge-orange { background: rgba(255, 165, 0, 0.1); color: #FFA500; border: 1px solid rgba(255, 165, 0, 0.2); }
-
-.pulse {
-  width: 8px;
-  height: 8px;
-  background: #00FF9D;
-  border-radius: 50%;
-  box-shadow: 0 0 0 rgba(0, 255, 157, 0.4);
-  animation: pulse-anim 2s infinite;
-}
-
-.badge-orange.pulse {
-  animation: pulse-orange 2s infinite;
-}
-
-@keyframes pulse-orange {
-  0% { box-shadow: 0 0 0 0 rgba(255, 165, 0, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 165, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 165, 0, 0); }
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 12px;
+    gap: 12px;
+  }
+  .glass-panel {
+    padding: 16px;
+    border-radius: 20px;
+  }
+  .text-3xl {
+    font-size: 1.75rem;
+  }
+  
+  /* 테이블을 카드로 변형 */
+  table, thead, tbody, th, td, tr {
+    display: block;
+  }
+  thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  tr {
+    margin-bottom: 12px;
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  td {
+    border: none;
+    padding: 6px 0;
+    position: relative;
+    padding-left: 40%;
+  }
+  td:before {
+    position: absolute;
+    left: 6px;
+    width: 35%;
+    white-space: nowrap;
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+  }
+  td:nth-of-type(1):before { content: "종목"; }
+  td:nth-of-type(2):before { content: "시간"; }
+  td:nth-of-type(3):before { content: "AI 판단"; }
+  td:nth-of-type(4):before { content: "리포트"; }
+  td:nth-of-type(4) { padding-left: 0; margin-top: 8px; border-top: 1px solid var(--border-color); }
+  td:nth-of-type(4):before { position: relative; display: block; margin-bottom: 4px; }
 }
 
 .console-panel {
   background: #050505;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
   padding: 16px;
   height: 250px;
-  display: flex;
-  flex-direction: column;
+  border-radius: 24px;
 }
 
 .log-content {
