@@ -8,21 +8,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
-# 디버깅: 배포 환경의 폴더 구조 확인 (오류 발생 시 로그 확인용)
-if os.environ.get("RENDER"):
-    print(f"DEBUG: Current DIR - {os.getcwd()}")
-    print(f"DEBUG: Root Files - {os.listdir('.')}")
-    if os.path.exists('trading_broker'):
-        print(f"DEBUG: trading_broker Files - {os.listdir('trading_broker')}")
-
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response
 from contextlib import asynccontextmanager
 
-from trading_broker.kis.client import KISClient
-from trading_broker.kis.adapters import KISAdapter
+from trading_broker.kis_api.client import KISClient
+from trading_broker.kis_api.adapters import KISAdapter
 from trading_strategy.models import StrategyConfig, RiskConfig
 from trading_strategy.ai_evaluator import AIEvaluator
 from trading_execution.trading_engine import TradingEngine

@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any
 
-from trading_broker.kis.adapters import KISAdapter
+from trading_broker.kis_api.adapters import KISAdapter
 from trading_strategy.models import TradingState, StrategyConfig, RiskConfig
 from trading_strategy.state_machine import TradingStateMachine
 from trading_strategy.ai_evaluator import AIEvaluator

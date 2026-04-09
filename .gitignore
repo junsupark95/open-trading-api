@@ -153,7 +153,7 @@ yarn-error.log*
 *.lock
 
 # ===== KIS (민감 정보 및 로컬 데이터) =====
-KIS/
+/KIS/
 .master/
 .kis_token*.json
 kis_devlp.yaml
