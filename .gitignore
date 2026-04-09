@@ -152,10 +152,14 @@ yarn-error.log*
 # ===== Lock files =====
 *.lock
 
-# ===== KIS (민감 정보) =====
+# ===== KIS (민감 정보 및 로컬 데이터) =====
 KIS/
 .master/
 .kis_token*.json
+kis_devlp.yaml
+trades.db
+*.log
+ai_engine.log
 
 # ===== Lean workspace =====
 .lean-workspace/
