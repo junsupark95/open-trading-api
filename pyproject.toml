@@ -1,6 +1,6 @@
 [project]
 name = "kis-github"
-version = "1.0.0"
+version = "18.0.0"
 description = "korea investment open api sample codes"
 readme = "README.md"
 requires-python = ">=3.11"
