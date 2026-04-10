@@ -34,8 +34,11 @@ class TradingEngine:
         # 1. DB에서 활성 포지션 복구
         await self.load_states_from_db()
         
-        # 2. 잔고 초기 동기화
-        await self.sync_balance()
+        # 2. 잔고 초기 동기화 (장중일 때만)
+        if is_market_open():
+            await self.sync_balance()
+        else:
+            logger.info("💤 장외 시간이므로 초기 잔고 동기화를 건너뜁니다.")
         
         # 3. 주기적 매매 루프 실행
         while self.is_running:
@@ -102,15 +105,15 @@ class TradingEngine:
                  sm.update("ERROR")
 
     async def sync_balance(self):
-        """실시간 잔고 동기화"""
+        """실시간 잔고 동기화 (장중에만 호출할 것)"""
+        if not is_market_open():
+            logger.debug("⏭️ 장외 시간 – 잔고 동기화 생략")
+            return
         try:
             self.balance = await asyncio.to_thread(self.adapter.get_balance)
             logger.info(f"📊 잔고 동기화 완료: 자산 {self.balance['total_asset']:,}원")
         except Exception as e:
-            if not is_market_open():
-                logger.warning(f"ℹ️ 장외 시간 잔고 조회 제한 (KIS 서버 응답 없음)")
-            else:
-                logger.error(f"❌ 잔고 동기화 에러: {e}")
+            logger.error(f"❌ 잔고 동기화 에러: {e}")
 
     async def run_cycle(self):
         """단일 매매 사이클 (스캔 -> 분석 -> 리스크 -> 주문)"""
